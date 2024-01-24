@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  air:
+    container_name: rate-limiter
+    image: cosmtrek/air
+    working_dir: /app
+    depends_on:
+      - redis
+    ports: 
+      - "8080:8080"
+    volumes:
+      - ./:/app/
+
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+      - 6379:6379
+    volumes:
+      - ./redis_data:/data
+    restart: always
