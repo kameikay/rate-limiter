@@ -1,40 +1,32 @@
 package main
 
 import (
-	"github.com/kameikay/rate-limiter/configs"
-	"github.com/kameikay/rate-limiter/internal/infra/redis"
-	"github.com/kameikay/rate-limiter/internal/infra/web/controllers"
-	"github.com/kameikay/rate-limiter/internal/infra/web/handlers"
-	"github.com/kameikay/rate-limiter/internal/infra/web/webserver"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/kameikay/rate-limiter/ratelimiter"
 )
 
 func main() {
-	configs, err := configs.LoadConfig(".")
+	err := ratelimiter.LoadConfig(".")
 	if err != nil {
 		panic(err)
 	}
-	rdb := redis.NewRedis()
 
-	webserver := webserver.NewWebServer(configs.WebServerPort)
-	webserver.MountMiddlewares()
-	// webserver.Router.Use(middleware.WithValue("RefreshTokenDuration", configs.RefreshTokenDuration))
+	router := chi.NewRouter()
+	router.Use(ratelimiter.NewRateLimiter())
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
 
-	// HEALTH CHECK
-	healthCheckController := controllers.NewHeathCheckController(webserver.Router)
-	healthCheckController.Route()
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
 
-	// HELLO
-	helloHandler := handlers.NewHelloHandler(rdb)
-	helloController := controllers.NewHelloController(webserver.Router, helloHandler)
-	helloController.Route()
+	err = http.ListenAndServe(":8080", router)
+	if err != nil {
+		panic(err)
+	}
 
-	// USERS
-	// userRepo := userRepository.NewUserRepository(dbConnection)
-	// confirmationCodeRepo := confirmationCodeRepository.NewConfirmationCodesRepository(dbConnection)
-	// userHandler := handlers.NewUserHandler(uow, userRepo, confirmationCodeRepo, rdb)
-	// userController := controllers.NewUsersController(webserver.Router, userHandler, configs.TokenAuth)
-	// userController.Route()
-
-	// STARTER
-	webserver.Start()
 }
