@@ -18,7 +18,7 @@ type RateLimiterTestSuite struct {
 	storageMock *mock.MockRateLimiterStorageInterface
 }
 
-func TestCreateItemInputUseCaseStart(t *testing.T) {
+func TestRateLimiterStart(t *testing.T) {
 	suite.Run(t, new(RateLimiterTestSuite))
 }
 
