@@ -5,9 +5,11 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/kameikay/rate-limiter/ratelimiter/storage"
 )
 
-type rateLimiterCheckFunction = func(ctx context.Context, key string, config *RateLimiterConfig, rateConfig *RateLimiterRateConfig) (*time.Time, error)
+type rateLimiterCheckFunction = func(ctx context.Context, key string, storage storage.RateLimiterStorageInterface, rateConfig *RateLimiterRateConfig) (*time.Time, error)
 
 func NewRateLimiter() func(next http.Handler) http.Handler {
 	return NewRateLimiterConfig()
@@ -28,10 +30,10 @@ func rateLimiter(config *RateLimiterConfig, next http.Handler, checkRateLimitFun
 		token := r.Header.Get("API_KEY")
 		if token != "" {
 			tokenConfig := config.GetRateLimiterRateConfigForToken(token)
-			blockTime, err = checkRateLimitFunc(r.Context(), token, config, tokenConfig)
+			blockTime, err = checkRateLimitFunc(r.Context(), token, config.Storage, tokenConfig)
 		} else {
 			host, _, _ := net.SplitHostPort(r.RemoteAddr)
-			blockTime, err = checkRateLimitFunc(r.Context(), host, config, config.IP)
+			blockTime, err = checkRateLimitFunc(r.Context(), host, config.Storage, config.IP)
 		}
 
 		if err != nil {
