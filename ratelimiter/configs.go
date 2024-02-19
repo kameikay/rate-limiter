@@ -1,11 +1,7 @@
 package ratelimiter
 
 import (
-	"fmt"
-	"os"
-	"regexp"
-	"strings"
-
+	"github.com/goccy/go-json"
 	"github.com/kameikay/rate-limiter/ratelimiter/storage"
 	"github.com/spf13/viper"
 )
@@ -44,6 +40,7 @@ func (rlc *RateLimiterConfig) GetRateLimiterRateConfigForToken(token string) *Ra
 func setConfig() *RateLimiterConfig {
 	defaultMaxRequests := viper.GetInt64("RATE_LIMITER_DEFAULT_MAX_REQUESTS")
 	defaultBlockTime := viper.GetInt64("RATE_LIMITER_DEFAULT_BLOCK_TIME")
+	customTokensEnvs := viper.GetString("RATE_LIMITER_CUSTOM_TOKENS")
 
 	// IP rate limiter
 	IP := &RateLimiterRateConfig{
@@ -52,42 +49,31 @@ func setConfig() *RateLimiterConfig {
 	}
 
 	// Token rate limiter
-	// Get custom tokens from env that satisfy the regex
-	envKeyRegex := regexp.MustCompile("^RATE_LIMITER_TOKEN_(.*)_(MAX_REQUESTS|BLOCK_TIME)$")
-	foundTokens := map[string]bool{}
-
-	envs := os.Environ()
-	for _, env := range envs {
-		envPair := strings.SplitN(env, "=", 2)
-		envKey := envPair[0]
-		if envKeyRegex.Match([]byte(envKey)) {
-			foundTokens[envKeyRegex.FindStringSubmatch(envKey)[1]] = true
-		}
+	type token struct {
+		Name                    string `json:"name"`
+		MaxRequestsPerSecond    int64  `json:"max_requests_per_second"`
+		BlockTimeInMilliseconds int64  `json:"block_time_in_milliseconds"`
 	}
-
-	tokens := []string{}
-	for t := range foundTokens {
-		tokens = append(tokens, t)
+	var tokens []token
+	err := json.Unmarshal([]byte(customTokensEnvs), &tokens)
+	if err != nil {
+		panic(err)
 	}
 
 	// Set custom tokens
-	var customTokens map[string]*RateLimiterRateConfig
-	for _, token := range tokens {
-		maxRequestsPerSecondEnvKey := fmt.Sprintf("RATE_LIMITER_TOKEN_%s_MAX_REQUESTS", token)
-		maxRequestsPerSecond := viper.GetInt64(maxRequestsPerSecondEnvKey)
-		if maxRequestsPerSecond == 0 {
-			maxRequestsPerSecond = defaultMaxRequests
+	var customTokens = make(map[string]*RateLimiterRateConfig)
+	for _, tkn := range tokens {
+		if tkn.MaxRequestsPerSecond == 0 {
+			tkn.MaxRequestsPerSecond = defaultMaxRequests
 		}
 
-		blockTimeEnvKey := fmt.Sprintf("RATE_LIMITER_TOKEN_%s_BLOCK_TIME", token)
-		blockTime := viper.GetInt64(blockTimeEnvKey)
-		if blockTime == 0 {
-			blockTime = defaultBlockTime
+		if tkn.BlockTimeInMilliseconds == 0 {
+			tkn.BlockTimeInMilliseconds = defaultBlockTime
 		}
 
-		customTokens[token] = &RateLimiterRateConfig{
-			MaxRequestsPerSecond:    maxRequestsPerSecond,
-			BlockTimeInMilliseconds: blockTime,
+		customTokens[tkn.Name] = &RateLimiterRateConfig{
+			MaxRequestsPerSecond:    tkn.MaxRequestsPerSecond,
+			BlockTimeInMilliseconds: tkn.BlockTimeInMilliseconds,
 		}
 	}
 
