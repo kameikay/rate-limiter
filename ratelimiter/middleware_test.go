@@ -106,6 +106,19 @@ func (suite *MiddlewareTestSuite) TestRateLimiter() {
 				w.Write([]byte("OK"))
 			}),
 		},
+		{
+			name: "should allow request when custom token is provided on env file",
+			rateLimiterCheckFunction: func(ctx context.Context, key string, storage storage.RateLimiterStorageInterface, rateConfig *RateLimiterRateConfig) (*time.Time, error) {
+				return nil, nil
+			},
+			statusCode: http.StatusOK,
+			message:    []byte("OK"),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("OK"))
+			}),
+			token: "custom-token",
+		},
 	}
 
 	for _, tc := range testCases {
