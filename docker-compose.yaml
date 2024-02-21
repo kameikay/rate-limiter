@@ -1,16 +1,15 @@
 version: '3'
 
 services:
-  air:
+  app:
     container_name: rate-limiter
-    image: cosmtrek/air
-    working_dir: /app
-    depends_on:
-      - redis
-    ports: 
+    build: .
+    ports:
       - "8080:8080"
     volumes:
-      - ./:/app/
+      - ./.env:/.env
+    networks:
+      - rate-limiter
 
   redis:
     image: redis
@@ -20,3 +19,10 @@ services:
     volumes:
       - ./redis_data:/data
     restart: always
+    networks:
+      - rate-limiter
+
+networks:
+  rate-limiter:
+    name: rate-limiter
+    driver: bridge
