@@ -1,36 +1,42 @@
-1. **Endereço IP**: O rate limiter deve restringir o número de requisições recebidas de um único endereço IP dentro de um intervalo de tempo definido.
-2. **Token de Acesso**: O rate limiter deve também poderá limitar as requisições baseadas em um token de acesso único, permitindo diferentes limites de tempo de expiração para diferentes tokens. O Token deve ser informado no header no seguinte formato:
-  - API_KEY: <TOKEN>
-3. As configurações de limite do token de acesso devem se sobrepor as do IP. Ex: Se o limite por IP é de 10 req/s e a de um determinado token é de 100 req/s, o rate limiter deve utilizar as informações do token.
+# Rate limiter
 
+## Description
+The Rate Limiter is a project that provides a mechanism to limit the rate of incoming requests to a system or API, using as a middlware. It helps prevent abuse, protect resources, and ensure fair usage. This project uses Redis to store the rate limit data, but you can easily modify it to use another storage system, respecting the same interface.
 
-**Requisitos**:
+## How It Works
+The Rate Limiter works by tracking the number of requests made within a specific time window. It enforces a predefined limit on the number of requests that can be made within that window. If the limit is exceeded, the Rate Limiter will respond a HTTP status code 429, with a message "you have reached the maximum number of requests or actions allowed within a certain time frame". It use Redis sorted sets to store the rate limit data, and it uses a sliding window algorithm to track the number of requests made within the time window.
 
-- O rate limiter deve poder trabalhar como um middleware que é injetado ao servidor web
-- O rate limiter deve permitir a configuração do número máximo de requisições permitidas por segundo.
-- O rate limiter deve ter ter a opção de escolher o tempo de bloqueio do IP ou do Token caso a quantidade de requisições tenha sido excedida.
-- As configurações de limite devem ser realizadas via variáveis de ambiente ou em um arquivo “.env” na pasta raiz.
-- Deve ser possível configurar o rate limiter tanto para limitação por IP quanto por token de acesso.
-- O sistema deve responder adequadamente quando o limite é excedido:
--- Código HTTP: 429
--- Mensagem: you have reached the maximum number of requests or actions allowed within a certain time frame
-- Todas as informações de "limiter” devem ser armazenadas e consultadas de um banco de dados Redis. Você pode utilizar docker-compose para subir o Redis.
-- Crie uma “strategy” que permita trocar facilmente o Redis por outro mecanismo de persistência.
-- A lógica do limiter deve estar separada do middleware.
+## Configuration
+To configure the Rate Limiter, you can modify the following parameters on the .env file:
 
-**Exemplos**:
+- **REDIS_ADDR**: The address of the Redis server used to store the rate limit data. (e.g. localhost:6379) - string
+- **REDIS_DB**: The database number used to store the rate limit data. (e.g. 0) - integer
+- **REDIS_PASSWORD**: The password used to authenticate with the Redis server. - string
+- **RATE_LIMITER_DEFAULT_MAX_REQUESTS**: The default maximum number of requests allowed within the time window. - integer
+- **RATE_LIMITER_DEFAULT_BLOCK_TIME**: The default block time in milliseconds for users who exceed the rate limit. - integer
+- **RATE_LIMITER_CUSTOM_TOKENS**: A list of custom tokens with their own rate limit and block time (JSON format). Each token should include the following properties:
+  - **Name**: The name of the token used to identify the user or client. (e.g. "user1") - string
+  - **Max Requests**: The maximum number of requests allowed within one second. - integer
+  - **Block Time**: The block time in milliseconds for users who exceed the rate limit. - integer
 
-1. Limitação por IP: Suponha que o rate limiter esteja configurado para permitir no máximo 5 requisições por segundo por IP. Se o IP 192.168.1.1 enviar 6 requisições em um segundo, a sexta requisição deve ser bloqueada.
-2. Limitação por Token: Se um token abc123 tiver um limite configurado de 10 requisições por segundo e enviar 11 requisições nesse intervalo, a décima primeira deve ser bloqueada.
-3. Nos dois casos acima, as próximas requisições poderão ser realizadas somente quando o tempo total de expiração ocorrer. Ex: Se o tempo de expiração é de 5 minutos, determinado IP poderá realizar novas requisições somente após os 5 minutos.
-Dicas:
+## How to play with it
+1. Clone the repository
+2. Run `docker-compose up` to start the Redis server and the Rate Limiter with air
+3. Make a request to the Rate Limiter using the following endpoint: `http://localhost:8080/`
+4. You can modify the rate limit configuration by editing the .env file and restarting the Rate Limiter
 
-Teste seu rate limiter sob diferentes condições de carga para garantir que ele funcione conforme esperado em situações de alto tráfego.
+## Stress Test
+To stress test the Rate Limiter, you can use [fortio](https://fortio.org/) to send a large number of requests to the Rate Limiter and observe how it handles the rate limit.
 
-Entrega:
+```bash
 
-- O código-fonte completo da implementação.
-- Documentação explicando como o rate limiter funciona e como ele pode ser configurado.
-- Testes automatizados demonstrando a eficácia e a robustez do rate limiter.
-- Utilize docker/docker-compose para que possamos realizar os testes de sua aplicação.
-- O servidor web deve responder na porta 8080.
+# Getting blocked for IP access when RATE_LIMITER_DEFAULT_MAX_REQUESTS=7
+docker run --rm --network=rate-limiter fortio/fortio load -qps 8 -c 1 -t 1s http://rate-limiter:8080
+
+# Getting blocked for random token access
+docker run --rm --network=rate-limiter fortio/fortio load -qps 10 -c 1 -t 1s -H "API_KEY: random" http://rate-limiter:8080
+
+# Getting blocked for "DEF321" token access when RATE_LIMITER_CUSTOM_TOKENS=[{"name":"DEF321","max_requests_per_second":15,"block_time_in_milliseconds":500}]
+docker run --rm --network=rate-limiter fortio/fortio load -qps 16 -c 1 -t 1s -H "API_KEY: DEF321" http://rate-limiter:8080
+
+```
