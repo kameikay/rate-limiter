@@ -42,6 +42,18 @@ func setConfig() *RateLimiterConfig {
 	defaultBlockTime := viper.GetInt64("RATE_LIMITER_DEFAULT_BLOCK_TIME")
 	customTokensEnvs := viper.GetString("RATE_LIMITER_CUSTOM_TOKENS")
 
+	if defaultMaxRequests == 0 {
+		defaultMaxRequests = 5
+	}
+
+	if defaultBlockTime == 0 {
+		defaultBlockTime = 500
+	}
+
+	if customTokensEnvs == "" {
+		customTokensEnvs = `[]`
+	}
+
 	// IP rate limiter
 	IP := &RateLimiterRateConfig{
 		MaxRequestsPerSecond:    defaultMaxRequests,
